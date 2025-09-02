@@ -102,6 +102,8 @@ import org.opensha.sra.gui.components.VulnerabilityBean;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
+import scratch.anne.fetchModifiedHazusVulnerabilities;
+
 
 
 /**
@@ -318,7 +320,8 @@ implements Runnable, ParameterChangeListener, CurveDisplayAppAPI, IMR_GuiBeanAPI
 
 
 			// initialize the various GUI beans
-			initVulnerabilityGuiBean(fetchVulns());
+//			initVulnerabilityGuiBean(fetchVulns());
+			initVulnerabilityGuiBean(fetchModifiedHazusVulnerabilities.getModifiedVulnerabilities());
 			initIMR_GuiBean();
 			this.initSiteGuiBean();
 			try{
