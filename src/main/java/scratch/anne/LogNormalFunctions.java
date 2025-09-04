@@ -10,9 +10,20 @@ import java.util.Arrays;
  * convenience methods to compute PDF, CDF, and quantiles for both
  * single values and arrays of values.
  * </p>
+ * <p>
+ * Provides constructors from either the parameters of the underlying normal distribution
+ * (μ and σ) or from the arithmetic mean and coefficient of variation (CoV) of the
+ * lognormal distribution.
+ * </p>
+ * 
+ * @author Anne Hulsey
+ * @version 2025-09-03
  */
 public class LogNormalFunctions {
+
     private final LogNormalDistribution logNorm;
+
+    // -------- Constructors --------
 
     /**
      * Creates a log-normal distribution from μ (log-scale mean) and σ (log-scale standard deviation).
@@ -25,7 +36,7 @@ public class LogNormalFunctions {
      * Note: These are <strong>not</strong> the mean and standard deviation of the lognormal distribution itself.
      * </p>
      *
-     * @param mu mean of the underlying normal distribution (i.e. log of the median of the lognormal)
+     * @param mu mean of the underlying normal distribution (log of the median)
      * @param sigma standard deviation of the underlying normal distribution
      */
     public LogNormalFunctions(double mu, double sigma) {
@@ -44,13 +55,14 @@ public class LogNormalFunctions {
      *
      * @param mean arithmetic mean of the lognormal distribution
      * @param cov coefficient of variation of the lognormal distribution
+     * @return a new {@link LogNormalFunctions} instance
      */
     public static LogNormalFunctions fromMeanAndCov(double mean, double cov) {
         double sigma = Math.sqrt(Math.log(1 + cov * cov));
         double mu = Math.log(mean) - 0.5 * sigma * sigma;
         return new LogNormalFunctions(mu, sigma);
     }
-    
+
     // -------- Array versions --------
 
     /**
@@ -127,7 +139,7 @@ public class LogNormalFunctions {
         return logNorm.inverseCumulativeProbability(p);
     }
 
-
+    // -------- Main method example --------
 
     /**
      * Demonstrates usage of the class with example values.
@@ -148,7 +160,7 @@ public class LogNormalFunctions {
         
         // Single values
         System.out.println("CDF at 1.0: " + logFuncs.cdf(1.0));
-        System.out.println("PDF AT 1.0: " + logFuncs.pdf(1.0));
+        System.out.println("PDF at 1.0: " + logFuncs.pdf(1.0));
         System.out.println("Quantile at 0.5: " + logFuncs.quantile(0.5));
     }
 }

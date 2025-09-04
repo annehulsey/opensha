@@ -2,7 +2,6 @@ package scratch.anne;
 
 import java.lang.reflect.Field;
 import java.util.List;
-import java.util.Arrays;
 import java.util.ArrayList;
 import java.io.IOException;
 
@@ -13,147 +12,138 @@ import org.opensha.commons.data.function.AbstractDiscretizedFunc;
 import org.opensha.commons.data.function.ArbitrarilyDiscretizedFunc;
 import org.opensha.sra.gui.LossEstimationApplication;
 
-
-
+/**
+ * Utility class for fetching and modifying vulnerability objects for the
+ * LossEstimationApplication.
+ * <p>
+ * This class adapts Hazus SimpleVulnerability instances to a format
+ * functionally similar to Curee vulnerabilities, and updates DEM matrices.
+ * It uses reflection to access and modify private fields in SimpleVulnerability.
+ * </p>
+ * <p>
+ * The use of reflection is a hack, in lieu of fixing the way that the servlet
+ * accesses the Hazus vulnerabilities.
+ * </p>
+ * <p>
+ * The Curee vulnerabilities are also updated to use dynamic generation of the DF_DEM
+ * values and the associated probabilities in the DEM.
+ * </p>
+ */
 public class fetchModifiedHazusVulnerabilities {
-	
-	private static double[] imls;
-	private static double[] DF;
-	private static double[] COVDF;
 
+    /**
+     * Fetches vulnerabilities from the LossEstimationApplication and converts them
+     * to a unified format compatible with DEM computations.
+     *
+     * @return a List of modified AbstractVulnerability objects
+     * @throws IOException if fetching vulnerabilities fails
+     */
     public static List<AbstractVulnerability> getModifiedVulnerabilities() throws IOException {
         List<AbstractVulnerability> vulnerabilities = LossEstimationApplication.fetchVulns();
+        List<AbstractVulnerability> modifiedVulnerabilities = new ArrayList<AbstractVulnerability>();
 
-        List<AbstractVulnerability> modifiedAsCureeVulnerabilities = new ArrayList<>();
         for (AbstractVulnerability vuln : vulnerabilities) {
             if (vuln instanceof CureeCaltechWoodFrame) {
-//                System.out.println("CUREE-Caltech vulnerability: " + vuln.getShortName());
-                CureeCaltechWoodFrame partialvuln = ((CureeCaltechWoodFrame)vuln);
-//                CureeCaltechWoodFrame modifiedvuln = partialvuln;
-                AbstractVulnerability modifiedvuln = partialToModifiedCureeVulnerability(vuln);
-                modifiedAsCureeVulnerabilities.add(modifiedvuln);
-//                System.out.println("DEM Matrix: " + Arrays.deepToString(modifiedvuln.getDEMMatrix()));
-            } 
-            else if (vuln instanceof SimpleVulnerability) {
-//                System.out.println("modified Simple vulnerability: " + vuln.getShortName());
-            	shortenSimpleVulnerabilitySkipZeroCov((SimpleVulnerability)vuln);
-                HazusAsCureeVulnerability partialvuln = setHazusToPartialCureeVulnerability(((SimpleVulnerability)vuln));
-                AbstractVulnerability modifiedvuln = partialToModifiedCureeVulnerability(partialvuln);
-                modifiedAsCureeVulnerabilities.add(modifiedvuln);
-//                System.out.println("DEM Matrix: " + Arrays.deepToString(modifiedvuln.getDEMMatrix()));
-            } 
-//            else {
-//                throw new IllegalArgumentException(
-//                    "Unexpected vulnerability type: " + vuln.getClass().getName()
-//                );
-//            }
+                // Modify CUREE-Caltech vulnerabilities directly
+                modifiedVulnerabilities.add(partialToModifiedCureeVulnerability(vuln));
+
+            } else if (vuln instanceof SimpleVulnerability) {
+                // Remove entries with zero coefficient of variation
+                shortenSimpleVulnerabilitySkipZeroCov((SimpleVulnerability) vuln);
+                // Convert SimpleVulnerability to HazusAsCureeVulnerability format
+                HazusAsCureeVulnerability partial = setHazusToPartialCureeVulnerability((SimpleVulnerability) vuln);
+                // Build DEM and finalize
+                modifiedVulnerabilities.add(partialToModifiedCureeVulnerability(partial));
+            }
         }
-        return modifiedAsCureeVulnerabilities;
+        return modifiedVulnerabilities;
     }
 
-        
-//    private static HazusAsCureeVulnerability partialToModifiedCureeVulnerability(HazusAsCureeVulnerability vuln) {
-//    	
-//    	double[] DEM_DFs = getDamageFactorsForDEM();
-//    	vuln.setDEM_DFs(DEM_DFs);
-//    	
-//    	double[][] DEM = new double[DEM_DFs.length][imls.length];
-//    	
-//    	for (int i = 0; i < imls.length; i++) {
-//    		LogNormalFunctions logNorm = LogNormalFunctions.fromMeanAndCov(DF[i], COVDF[i]);
-//    		for (int j = 0; j < DEM_DFs.length; j++) {
-//    			DEM[j][i] = 1 - logNorm.cdf(DEM_DFs[j]);
-//    		}
-//    	}
-//    	
-//    	
-////    	System.out.println("DEM Matrix: " + Arrays.deepToString(DEM));
-//    	vuln.setDEM(DEM);
-//    	
-//    	return vuln;
-//    }
-    
-    
+    /**
+     * Converts a partial vulnerability into a fully modified vulnerability
+     * with a DEM matrix.
+     *
+     * @param vuln the vulnerability to modify (either a HazusAsCureeVulnerability or a CureeCaltechWoodFrame)
+     * @return the modified vulnerability with DEM values set
+     * @throws IllegalArgumentException if the vulnerability type is unexpected
+     */
     private static AbstractVulnerability partialToModifiedCureeVulnerability(AbstractVulnerability vuln) {
         double[] DEM_DFs = getDamageFactorsForDEM();
-
         double[] imls;
         double[] DF;
         double[] COVDF;
 
-        // Determine type and get appropriate arrays
         if (vuln instanceof HazusAsCureeVulnerability) {
-        	HazusAsCureeVulnerability h = (HazusAsCureeVulnerability) vuln;
+            HazusAsCureeVulnerability h = (HazusAsCureeVulnerability) vuln;
             h.setDEM_DFs(DEM_DFs);
             imls = h.getIMLValues();
             DF = h.getDFArray();
             COVDF = h.getCOVDFArray();
-
-            double[][] DEM = buildDEMMatrix(imls, DF, COVDF, DEM_DFs);
-            h.setDEM(DEM);
+            // Build DEM matrix: rows = DEM_DFs, columns = IMLs
+            h.setDEM(buildDEMMatrix(imls, DF, COVDF, DEM_DFs));
             return h;
 
         } else if (vuln instanceof CureeCaltechWoodFrame) {
-            // Example: adapt these accessors to the Curee class
-        	CureeCaltechWoodFrame c = (CureeCaltechWoodFrame) vuln;
+            CureeCaltechWoodFrame c = (CureeCaltechWoodFrame) vuln;
             imls = c.getIMLValues();
             DF = c.getDFArray();
             COVDF = c.getCOVDFArray();
-
-            double[][] DEM = buildDEMMatrix(imls, DF, COVDF, DEM_DFs);
-
             c.setDEM_DFs(DEM_DFs);
-            c.setDEM(DEM);
-            
-            // setting the DEM to zero is a quick check to make sure the hardcoded CUREE dem is overridden
-//            double[][] zeroDEM = new double[DEM.length][DEM[0].length]; // all entries default to 0.0
-//            c.setDEM(zeroDEM);
-            
-            System.out.println("Curee updated");
-            
-            
+            // Build DEM matrix: rows = DEM_DFs, columns = IMLs
+            c.setDEM(buildDEMMatrix(imls, DF, COVDF, DEM_DFs));
             return c;
-
-        } else {
-            throw new IllegalArgumentException("Unexpected vulnerability type: " + vuln.getClass().getName());
         }
+
+        throw new IllegalArgumentException("Unexpected vulnerability type: " + vuln.getClass().getName());
     }
-    
-    
+
     /**
-     * Build the DEM matrix: rows = DEM_DFs, columns = IMLs
+     * Builds the damage exceedance matrix (DEM) for a given vulnerability.
+     *
+     * @param imls array of intensity measure levels
+     * @param DF array of mean damage factors
+     * @param COVDF array of coefficients of variation
+     * @param DEM_DFs array of DEM damage factor thresholds
+     * @return a 2D array representing the DEM matrix (rows = DEM_DFs, columns = IMLs)
      */
     private static double[][] buildDEMMatrix(double[] imls, double[] DF, double[] COVDF, double[] DEM_DFs) {
         double[][] DEM = new double[DEM_DFs.length][imls.length];
         for (int i = 0; i < imls.length; i++) {
+            // Create lognormal distribution from mean and coefficient of variation
             LogNormalFunctions logNorm = LogNormalFunctions.fromMeanAndCov(DF[i], COVDF[i]);
             for (int j = 0; j < DEM_DFs.length; j++) {
+                // DEM[j][i] = P(Damage > DEM_DFs[j] | IML[i])
+                // Equivalent to 1 - CDF at DEM threshold
                 DEM[j][i] = 1 - logNorm.cdf(DEM_DFs[j]);
             }
         }
         return DEM;
     }
 
-    
-    private static HazusAsCureeVulnerability setHazusToPartialCureeVulnerability(AbstractVulnerability vuln) {
-    	String im_type = vuln.getIMT();
-        double[] imlsExtra = vuln.getIMLValues();
-//        int n_imls = imlsExtra.length - 1;
-        int n_imls = imlsExtra.length;
-        imls = new double[n_imls];
-        DF = new double[n_imls];
-        COVDF = new double[n_imls];
-
-        AbstractDiscretizedFunc vulnerabilityFunction =
-            ((SimpleVulnerability)vuln).getVulnerabilityFunc();
-        AbstractDiscretizedFunc covFunction =
-            ((SimpleVulnerability)vuln).getCOVFunction();
-
-        for (int i = 0; i < n_imls; i++) {
-        	imls[i] = imlsExtra[i];
+    /**
+     * Converts a SimpleVulnerability instance into a HazusAsCureeVulnerability.
+     * This is necessary because DF and COV values are not directly accessible when
+     * they are returned by the servlet.
+     *
+     * @param vuln the SimpleVulnerability instance
+     * @return a new HazusAsCureeVulnerability containing the same IM, DF, and COV values
+     */
+    private static HazusAsCureeVulnerability setHazusToPartialCureeVulnerability(SimpleVulnerability vuln) {
+        
+	    double[] imls = vuln.getIMLValues();
+	    double[] DF = new double[imls.length];
+	    double[] COVDF = new double[imls.length];
+	    
+	    // use the functions that are accessible in the SimpleVulnerability 
+	    // to recreate the inaccessible DF and COVDF arrays
+        AbstractDiscretizedFunc vulnerabilityFunction = vuln.getVulnerabilityFunc();
+        AbstractDiscretizedFunc covFunction = vuln.getCOVFunction();
+	    
+        for (int i = 0; i < imls.length; i++) {
             DF[i] = vulnerabilityFunction.getY(imls[i]);
             COVDF[i] = covFunction.getY(imls[i]);
         }
+
 
         return new HazusAsCureeVulnerability(
             vuln.getName(),
@@ -164,87 +154,82 @@ public class fetchModifiedHazusVulnerabilities {
             COVDF
         );
     }
-    
-    
+
+    /**
+     * Updates a SimpleVulnerability by removing all iml values for which the coefficient of
+     * variation is zero.
+     * <p>
+     * This method uses reflection to access and modify private fields in SimpleVulnerability.
+     * It also rebuilds the vulnerability and covariance functions.
+     * </p>
+     * 
+     * <p>
+     * This approach is a hack based on what is currently fetched and created from the Hazus
+     * files, via the servlet. Ideally, that initial reading of the file would already create 
+     * the desired vulnerability, rather than needing to do any of these modifications.
+     * </p>
+     *
+     * @param vuln the SimpleVulnerability to modify
+     */
     public static void shortenSimpleVulnerabilitySkipZeroCov(SimpleVulnerability vuln) {
         try {
-            // --- Helper to get ArrayList<Double> field ---
-            @SuppressWarnings("unchecked")
-            ArrayList<Double> imlsList = (ArrayList<Double>) getFieldFromClassHierarchy(vuln, "im_levels").get(vuln);
-            @SuppressWarnings("unchecked")
-            ArrayList<Double> dfList   = (ArrayList<Double>) getFieldFromClassHierarchy(vuln, "mdfVals").get(vuln);
-            @SuppressWarnings("unchecked")
-            ArrayList<Double> covList  = (ArrayList<Double>) getFieldFromClassHierarchy(vuln, "covVals").get(vuln);
+            ArrayList imlsList = (ArrayList) getFieldFromClassHierarchy(vuln, "im_levels").get(vuln);
+            ArrayList dfList   = (ArrayList) getFieldFromClassHierarchy(vuln, "mdfVals").get(vuln);
+            ArrayList covList  = (ArrayList) getFieldFromClassHierarchy(vuln, "covVals").get(vuln);
 
-            // --- Convert to double[] ---
-            double[] imlsOld = imlsList.stream().mapToDouble(Double::doubleValue).toArray();
-            double[] dfOld   = dfList.stream().mapToDouble(Double::doubleValue).toArray();
-            double[] covOld  = covList.stream().mapToDouble(Double::doubleValue).toArray();
+            int size = covList.size();
+            ArrayList imlsNew = new ArrayList();
+            ArrayList dfNew   = new ArrayList();
+            ArrayList covNew  = new ArrayList();
 
-            // --- Count valid entries ---
-            int validCount = 0;
-            for (double c : covOld) if (c != 0) validCount++;
-
-            // --- Build new arrays keeping only valid entries ---
-            double[] imlsNew = new double[validCount];
-            double[] dfNew   = new double[validCount];
-            double[] covNew  = new double[validCount];
-
-            int idx = 0;
-            for (int i = 0; i < covOld.length; i++) {
-                if (covOld[i] != 0) {
-                    imlsNew[idx] = imlsOld[i];
-                    dfNew[idx]   = dfOld[i];
-                    covNew[idx]  = covOld[i];
-                    idx++;
+            for (int i = 0; i < size; i++) {
+                double cov = ((Double) covList.get(i)).doubleValue();
+                // Only keep entries with non-zero COV
+                if (cov != 0) {
+                    imlsNew.add(imlsList.get(i));
+                    dfNew.add(dfList.get(i));
+                    covNew.add(covList.get(i));
                 }
             }
 
-            // --- Convert back to ArrayList<Double> ---
-            ArrayList<Double> imlsNewList = new ArrayList<>();
-            ArrayList<Double> dfNewList   = new ArrayList<>();
-            ArrayList<Double> covNewList  = new ArrayList<>();
+            // Update fields via reflection
+            getFieldFromClassHierarchy(vuln, "im_levels").set(vuln, imlsNew);
+            getFieldFromClassHierarchy(vuln, "mdfVals").set(vuln, dfNew);
+            getFieldFromClassHierarchy(vuln, "covVals").set(vuln, covNew);
 
-            for (int i = 0; i < validCount; i++) {
-                imlsNewList.add(imlsNew[i]);
-                dfNewList.add(dfNew[i]);
-                covNewList.add(covNew[i]);
-            }
-
-            // --- Set the fields ---
-            getFieldFromClassHierarchy(vuln, "im_levels").set(vuln, imlsNewList);
-            getFieldFromClassHierarchy(vuln, "mdfVals").set(vuln, dfNewList);
-            getFieldFromClassHierarchy(vuln, "covVals").set(vuln, covNewList);
-
-            // --- Rebuild vulnerabilityFunc ---
+            // rebuild vulnerability function
             Field vulnFuncField = getFieldFromClassHierarchy(vuln, "vulnFunc");
-            vulnFuncField.setAccessible(true);
             AbstractDiscretizedFunc vulnFunc = new ArbitrarilyDiscretizedFunc();
-            for (int i = 0; i < validCount; i++) {
-                vulnFunc.set(imlsNew[i], dfNew[i]);
+            for (int i = 0; i < imlsNew.size(); i++) {
+                vulnFunc.set(((Double) imlsNew.get(i)).doubleValue(),
+                             ((Double) dfNew.get(i)).doubleValue());
             }
             vulnFuncField.set(vuln, vulnFunc);
 
-            // --- Rebuild covFunc ---
+            // rebuild cov function
             Field covFuncField = getFieldFromClassHierarchy(vuln, "covFunc");
-            covFuncField.setAccessible(true);
             AbstractDiscretizedFunc covFunc = new ArbitrarilyDiscretizedFunc();
-            for (int i = 0; i < validCount; i++) {
-                covFunc.set(imlsNew[i], covNew[i]);
+            for (int i = 0; i < imlsNew.size(); i++) {
+                covFunc.set(((Double) imlsNew.get(i)).doubleValue(),
+                             ((Double) covNew.get(i)).doubleValue());
             }
             covFuncField.set(vuln, covFunc);
 
-//            System.out.println("SimpleVulnerability updated, removed entries where covdf==0. New length: " + validCount);
-
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException("Failed to update SimpleVulnerability arrays/functions", e);
         }
     }
 
-    // --- Helper to find field in class hierarchy ---
+    /**
+     * Finds a declared field in an object's class or its superclasses.
+     *
+     * @param obj the object whose class hierarchy to search
+     * @param fieldName the name of the field to find
+     * @return the Field object
+     * @throws NoSuchFieldException if the field is not found in the hierarchy
+     */
     private static Field getFieldFromClassHierarchy(Object obj, String fieldName) throws NoSuchFieldException {
-        Class<?> clazz = obj.getClass();
+        Class clazz = obj.getClass();
         while (clazz != null) {
             try {
                 Field f = clazz.getDeclaredField(fieldName);
@@ -257,56 +242,50 @@ public class fetchModifiedHazusVulnerabilities {
         throw new NoSuchFieldException(fieldName);
     }
 
-    
+    /**
+     * Generates an array of damage factor thresholds for building the DEM matrix.
+     * 
+     * The start, increment, and end points (1e-6, 1.0, 1.2) are consistent with those
+     * hardcoded in the Curee vulnerabilities
+     *
+     * @return array of damage factors
+     */
     public static double[] getDamageFactorsForDEM() {
-    	double start = 1e-6;
-    	double end = 1;
-    	double ratio = 1.2;
-    			
-        return generateDamageFactorsForDEM(start, end, ratio);
+        return generateDamageFactorsForDEM(1e-6, 1.0, 1.2);
     }
-    
+
+    /**
+     * Generates a geometrically spaced array of values from start to end.
+     *
+     * @param start the starting value
+     * @param end the maximum value
+     * @param ratio the geometric ratio between consecutive values
+     * @return array of values
+     */
     private static double[] generateDamageFactorsForDEM(double start, double end, double ratio) {
-    	List<Double> values = new ArrayList<>();
-        for (double x = start; x <= end; x *= ratio) values.add(x);
-        return values.stream().mapToDouble(Double::doubleValue).toArray();
+        List values = new ArrayList();
+        for (double x = start; x <= end; x *= ratio) {
+            // Add values spaced geometrically by ratio
+            values.add(new Double(x));
+        }
+        double[] arr = new double[values.size()];
+        for (int i = 0; i < values.size(); i++) arr[i] = ((Double) values.get(i)).doubleValue();
+        return arr;
     }
-    
-    // various print statements used in testing
+
+    /**
+     * Test method to fetch and display the modified vulnerabilities.
+     * 
+     * was initially used for debugging by printing various fields in 
+     * the modified Hazus and Curee vulnerabilities
+     *
+     * @param args not used
+     * @throws IOException if fetching vulnerabilities fails
+     */
     public static void main(String[] args) throws IOException {
-    	List<AbstractVulnerability> vulnerabilities = getModifiedVulnerabilities();
-    	for (AbstractVulnerability vuln : vulnerabilities) {
-    		System.out.println("Fetched " + vuln.getShortName());
-//    		System.out.println("im type: " + vuln.getIMT());
-//    		System.out.println("imtl levels: " + Arrays.toString(vuln.getIMTValues()));
-//    		System.out.println("imtl n levels: " + vuln.getIMLValues().length);
-    		
-    		
-//            if (vuln instanceof CureeCaltechWoodFrame) {
-//            	System.out.println("DEM Matrix: " + Arrays.deepToString(((CureeCaltechWoodFrame)vuln).getDEMMatrix()));
-//                System.out.println("CUREE-Caltech vulnerability: " + vuln.getShortName());
-//                System.out.println("df values: " + Arrays.toString(((CureeCaltechWoodFrame)vuln).getDFArray()));
-//        		System.out.println("cov values: " + Arrays.toString(((CureeCaltechWoodFrame)vuln).getCOVDFArray()));    
-//            } 
-//            if (vuln instanceof HazusAsCureeVulnerability) {
-//           	System.out.println("DEM Matrix: " + Arrays.deepToString(((HazusAsCureeVulnerability)vuln).getDEMMatrix()));
-//               System.out.println("Hazus-Curee vulnerability: " + vuln.getShortName());
-//               System.out.println("im type: " + vuln.getIMT());
-//               System.out.println("df values: " + Arrays.toString(((HazusAsCureeVulnerability)vuln).getDFArray()));
-//       		System.out.println("cov values: " + Arrays.toString(((HazusAsCureeVulnerability)vuln).getCOVDFArray()));  
-//      		System.out.println("dem_dfs: " + Arrays.toString(((HazusAsCureeVulnerability)vuln).getDEMDFVals()));  
-//      		System.out.println(vuln);
-//      		System.out.println(((HazusAsCureeVulnerability)vuln).getDEMDimensions());
-//        		
-//          } 
-//            else {
-//                throw new IllegalArgumentException(
-//                    "Unexpected vulnerability type: " + vuln.getClass().getName()
-//                );
-//            }
-//        }
- 		
-    	}
+        List<AbstractVulnerability> vulnerabilities = getModifiedVulnerabilities();
+        for (int i = 0; i < vulnerabilities.size(); i++) {
+            System.out.println("Fetched " + vulnerabilities.get(i).getShortName());
+        }
     }
 }
-
