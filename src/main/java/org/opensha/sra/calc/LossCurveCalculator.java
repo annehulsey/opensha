@@ -59,6 +59,7 @@ public class LossCurveCalculator {
 			pelist.add((Double) iter.next());
 		
 		pelist = diffIt(pelist);
+		System.out.println(pelist);
 		
 		Matrix PEMatrix = new Matrix(pelist.size(), 1);
 		for(int i = 0; i < pelist.size(); ++i)
@@ -66,6 +67,8 @@ public class LossCurveCalculator {
 		
 		// Get the DEM
 		Matrix DEMMatrix = new Matrix(curVulnModel.getDEMMatrix());
+		System.out.println("DEM");
+		DEMMatrix.print(8,3);
 		
 		Matrix result = DEMMatrix.times(PEMatrix);
 		
