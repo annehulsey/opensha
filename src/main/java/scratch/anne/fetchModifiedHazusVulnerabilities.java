@@ -133,6 +133,7 @@ public class fetchModifiedHazusVulnerabilities {
 	    double[] imls = vuln.getIMLValues();
 	    double[] DF = new double[imls.length];
 	    double[] COVDF = new double[imls.length];
+	    double period = vuln.getPeriod();
 	    
 	    // use the functions that are accessible in the SimpleVulnerability 
 	    // to recreate the inaccessible DF and COVDF arrays
@@ -149,6 +150,7 @@ public class fetchModifiedHazusVulnerabilities {
             vuln.getName(),
             vuln.getShortName(),
             vuln.getIMT(),
+            period,
             imls,
             DF,
             COVDF
