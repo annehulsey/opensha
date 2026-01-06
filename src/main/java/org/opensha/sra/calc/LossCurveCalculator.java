@@ -52,6 +52,21 @@ public class LossCurveCalculator {
 		// Get the damage factors (these will be x values later)...
 		double[] dfs = curVulnModel.getDEMDFVals();
 		
+		// Print hazard for testing
+		ArrayList<Double> xList = new ArrayList<>();
+		ArrayList<Double> yList = new ArrayList<>();
+
+		for (int i = 0; i < hazFunc.size(); i++) {
+		    xList.add(hazFunc.getX(i));
+		    yList.add(hazFunc.getY(i));
+		}
+
+		// Print in Python list format
+		System.out.println("x_values = " + xList.toString() + ";");
+		System.out.println("y_values = " + yList.toString() + ";");
+
+
+		
 		// Get the probabilities of exceedance (hazard curve)...
 		Iterator<Double> iter = hazFunc.getYValuesIterator();
 		ArrayList<Double> pelist = new ArrayList<Double>();
