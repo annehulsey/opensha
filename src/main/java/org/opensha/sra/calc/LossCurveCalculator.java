@@ -62,8 +62,8 @@ public class LossCurveCalculator {
 		}
 
 		// Print in Python list format
-		System.out.println("x_values = " + xList.toString() + ";");
-		System.out.println("y_values = " + yList.toString() + ";");
+		System.out.println("hcurve_imls = " + xList.toString() + ";");
+		System.out.println("hcurve_poe  = " + yList.toString() + ";");
 
 
 		

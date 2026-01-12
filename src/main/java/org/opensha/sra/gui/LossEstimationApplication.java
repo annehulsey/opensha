@@ -93,7 +93,8 @@ import org.opensha.sra.vulnerability.models.curee.caltech.CCLargeHouseTypical;
 import org.opensha.sra.vulnerability.models.curee.caltech.CCLargeHouseWaistWall;
 import org.opensha.sra.vulnerability.models.curee.caltech.CCSmallHouseRetro;
 import org.opensha.sra.vulnerability.models.curee.caltech.CCSmallHouseTypical;
-import org.opensha.sra.vulnerability.models.curee.caltech.CCTownhouseLimitedDrift;
+//import org.opensha.sra.vulnerability.models.curee.caltech.CCTownhouseLimitedDrift;
+import org.opensha.sra.vulnerability.models.curee.finergrid.CCTownhouseLimitedDrift;
 import org.opensha.sra.vulnerability.models.curee.caltech.CCTownhouseTypical;
 import org.opensha.sra.vulnerability.models.servlet.VulnerabilityServletAccessor;
 import org.opensha.sra.vulnerability.models.servlet.VulnerabilityLocalAccessor;
@@ -290,8 +291,8 @@ implements Runnable, ParameterChangeListener, CurveDisplayAppAPI, IMR_GuiBeanAPI
 	}
 	
 	public static List<AbstractVulnerability> fetchVulns() throws IOException {
-		VulnerabilityServletAccessor access = new VulnerabilityServletAccessor();
-//		VulnerabilityLocalAccessor access = new VulnerabilityLocalAccessor();
+//		VulnerabilityServletAccessor access = new VulnerabilityServletAccessor();
+		VulnerabilityLocalAccessor access = new VulnerabilityLocalAccessor();
 		ArrayList<AbstractVulnerability> vms = new ArrayList<AbstractVulnerability>();
 		for (Vulnerability vuln : access.getVulnMap().values()) {
 			if (vuln instanceof AbstractVulnerability)
