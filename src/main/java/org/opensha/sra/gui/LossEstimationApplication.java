@@ -290,8 +290,8 @@ implements Runnable, ParameterChangeListener, CurveDisplayAppAPI, IMR_GuiBeanAPI
 	}
 	
 	public static List<AbstractVulnerability> fetchVulns() throws IOException {
-		VulnerabilityServletAccessor access = new VulnerabilityServletAccessor();
-//		VulnerabilityLocalAccessor access = new VulnerabilityLocalAccessor();
+//		VulnerabilityServletAccessor access = new VulnerabilityServletAccessor();
+		VulnerabilityLocalAccessor access = new VulnerabilityLocalAccessor();
 		ArrayList<AbstractVulnerability> vms = new ArrayList<AbstractVulnerability>();
 		for (Vulnerability vuln : access.getVulnMap().values()) {
 			if (vuln instanceof AbstractVulnerability)
