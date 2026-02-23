@@ -321,6 +321,22 @@ public class Asset implements Cloneable {
 		}
 
 		if ( error && controller != null) controller.calculationException( errorMessage );
+		
+		StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < annualizedRates.size(); i++) {
+		    if (i > 0) sb.append(",");
+		    sb.append(annualizedRates.getY(i));
+		}
+		System.out.println("Full hazard in rates:");
+		System.out.println("   "+sb.toString());
+//		
+//		sb = new StringBuilder();
+//		for (int i = 0; i < hazFunction.size(); i++) {
+//		    if (i > 0) sb.append(",");
+//		    sb.append(hazFunction.getY(i));
+//		}
+//		System.out.println("Full hazard in probabilities:");
+//		System.out.println("   "+sb.toString());
 
 		EALCalculator currentCalc = new EALCalculator( annualizedRates, vulnModel.getVulnerabilityFunc(), getValue() );
 		EAL = currentCalc.computeEAL();
@@ -414,6 +430,7 @@ public class Asset implements Cloneable {
 		
 		for (int sourceID=0; sourceID<erf.getNumSources(); sourceID++) {
 			ProbEqkSource source = erf.getSource(sourceID);
+//			double distance = source.getMinDistance(newSite);
 			double distance = source.getMinDistance(site);
 			
 			if (magThreshFunc == null) {
@@ -438,11 +455,28 @@ public class Asset implements Cloneable {
 				// calc deterministic hazard curve
 				calc.getHazardCurve(logHazFunction, newSite, imr, rupture);
 				
+//				StringBuilder sb = new StringBuilder();
+//				for (int i = 0; i < logHazFunction.size(); i++) {
+//				    if (i > 0) sb.append(",");
+//				    sb.append(logHazFunction.getY(i));
+//				}
+//				System.out.println("Rupture rate: "+rupture.getMeanAnnualRate(duration));
+//				System.out.println("Probability given rupture:");
+//				System.out.println("   "+sb.toString());
+				
 				Preconditions.checkState(imls.length == logHazFunction.size());
 
 				// populate the linear func with the y values
 				for (int i=0; i<logHazFunction.size(); i++)
 					hazFunction.set(i, logHazFunction.getY(i));
+				
+//				StringBuilder sb = new StringBuilder();
+//				for (int i = 0; i < hazFunction.size(); i++) {
+//				    if (i > 0) sb.append(",");
+//				    sb.append(hazFunction.getY(i));
+//				}
+//
+//				System.out.println(sb.toString());
 
 //				// Create the annualized rates function to be used in the EAL calculator
 //				try {
@@ -527,7 +561,15 @@ public class Asset implements Cloneable {
 	public Site getSite() {
 		return assetSite;
 	}
-
+	
+	/**
+	 * Get the Vs30 associated with an asset.
+	 * @return The Vs30 for the asset
+	 */	
+	public Double getVs30() {
+		return (Double)getParameterList().getParameter("Vs30").getValue();
+	}
+	
 	/**
 	 * @return The hazard function associated with an asset
 	 */
